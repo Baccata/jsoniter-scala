@@ -1881,9 +1881,8 @@ final class JsonWriter private[jsoniter_scala](
               len -= 1
             }
           }
-          pv &= 0x780000000L // get the last removed digit
-          if (!(dvIsTrailingZeros && pv == 0x400000000L /* is 5 */ && (dv & 0x1) == 0 ||
-            (pv < 0x400000000L /* is less than 5 */ && (dv != dm || dmIsTrailingZeros)))) dv += 1
+          pv &= 0x780000000L // mask the last removed digit
+          if (pv > 0x400000000L /* > 5 */ || pv == 0x400000000L /* == 5 */ && (!dvIsTrailingZeros || (dv & 0x1) != 0)) dv += 1
         } else {
           var pv = 0L
           while ((decimalNotation || dp >= 1000) && {
@@ -1898,17 +1897,13 @@ final class JsonWriter private[jsoniter_scala](
             len -= 2
           }
           val roundUp =
-            if ((decimalNotation || dp >= 100) && {
-              newDm = (dm * 3435973837L >> 35).toInt // divide positive int by 10
-              (dp * 3435973837L >> 35).toInt > newDm // divide positive int by 10
-            }) {
+            if ((decimalNotation || dp >= 100) && (dp * 3435973837L >> 35) > (dm * 3435973837L >> 35)) {  // divide positive ints by 10
               pv = dv * 3435973837L
               dv = (pv >> 35).toInt // divide positive int by 10
-              dm = newDm
               len -= 1
-              (pv & 0x780000000L) >= 0x400000000L // test if the last removed digit is 5 or greater
-            } else (pv & 0x1fc0000000L) >= 0x1000000000L // test if the last removed digit is 5 or greater
-          if (roundUp || dv == dm) dv += 1
+              (pv & 0x780000000L) >= 0x400000000L // round up if the last removed digit is 5 or greater
+            } else (pv & 0x1fc0000000L) >= 0x1000000000L // round up if the last removed digit is 5 or greater
+          if (roundUp) dv += 1
         }
       }
       var pos = ensureBufCapacity(15)
@@ -2077,8 +2072,7 @@ final class JsonWriter private[jsoniter_scala](
               len -= 1
             }
           }
-          if (!(dvIsTrailingZeros && lastRemovedDigit == 5 && (dv & 0x1) == 0 ||
-            (lastRemovedDigit < 5 && (dv != dm || dmIsTrailingZeros)))) dv += 1
+          if (lastRemovedDigit > 5 || lastRemovedDigit == 5 && (!dvIsTrailingZeros || (dv & 0x1) != 0)) dv += 1
         } else {
           var newDp, newDm, oldDv = 0L
           while ((decimalNotation || dp >= 1000) && {
@@ -2093,17 +2087,13 @@ final class JsonWriter private[jsoniter_scala](
             len -= 2
           }
           val roundUp =
-            if ((decimalNotation || dp >= 100) && {
-              newDm = dm / 10
-              dp / 10 > newDm
-            }) {
+            if ((decimalNotation || dp >= 100) && dp / 10 > dm / 10) {
               oldDv = dv
               dv /= 10
-              dm = newDm
               len -= 1
               oldDv - dv * 10 >= 5
             } else oldDv - dv * 100 >= 50
-          if (roundUp || dv == dm) dv += 1
+          if (roundUp) dv += 1
         }
       }
       var pos = ensureBufCapacity(24)
